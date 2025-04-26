@@ -1,0 +1,4 @@
+venv
+.vscode/settings.json
+outputs
+chromedriver-win64
