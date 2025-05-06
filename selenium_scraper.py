@@ -38,6 +38,17 @@ driver = webdriver.Chrome(options=chrome_options)
 
 all_sentences = []
 
+# Set up CLI test flag
+parser = argparse.ArgumentParser(description="Scrape Tatoeba sentences.")
+parser.add_argument('--test', action='store_true', help='Run in test mode with limited scraping')
+args = parser.parse_args()
+
+if args.test:
+    print("Running in TEST mode: Only scraping one English language page")
+    TARGETS = [TARGETS[0]]
+    MAX_PAGES = 1
+
+# Run the scraper for each language
 for target in TARGETS:
     print(f"\nScraping {target['language']}...")
 
