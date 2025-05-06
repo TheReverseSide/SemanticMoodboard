@@ -10,19 +10,19 @@ LANGUAGE_MODELS = {
     "English": {
         "df": df[df["language"] == "English"].copy(),
         "model": "en_core_web_trf"
-    }
-    # "Spanish": {
-    #     "df": df[df["language"] == "Spanish"].copy(),
-    #     "model": "es_dep_news_trf"
-    # },
-    # "Italian": {
-    #     "df": df[df["language"] == "Italian"].copy(),
-    #     "model": "it_core_news_lg"
-    # },
-    # "German": {
-    #     "df": df[df["language"] == "German"].copy(),
-    #     "model": "de_dep_news_trf"
-    # },
+    },
+    "Spanish": {
+        "df": df[df["language"] == "Spanish"].copy(),
+        "model": "es_dep_news_trf"
+    },
+    "Italian": {
+        "df": df[df["language"] == "Italian"].copy(),
+        "model": "it_core_news_lg"
+    },
+    "German": {
+        "df": df[df["language"] == "German"].copy(),
+        "model": "de_dep_news_trf"
+    },
     # "Swedish": {
     #     "df": df[df["language"] == "Swedish"].copy(),
     #     "model": "sv_core_news_lg"

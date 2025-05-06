@@ -1,30 +1,32 @@
-import time
+import argparse
+import numpy as np
 import pandas as pd
+import time
+import torch
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from sentence_transformers import SentenceTransformer, util
 
 # ------------------------
 # CONFIG
 # ------------------------
-
 TARGETS = [
-    {"language": "English", "word": "freedom", "lang_code": "eng", "html_lang": "en"},
+    # {"language": "English", "word": "freedom", "lang_code": "eng", "html_lang": "en"},
     # {"language": "German", "word": "Freiheit", "lang_code": "deu", "html_lang": "de"},
     # {"language": "Spanish", "word": "libertad", "lang_code": "spa", "html_lang": "es"},
-    # {"language": "Italian", "word": "libertà", "lang_code": "ita", "html_lang": "it"},
+    {"language": "Italian", "word": "libertà", "lang_code": "ita", "html_lang": "it"},
     # {"language": "Swedish", "word": "frihet", "lang_code": "swe", "html_lang": "sv"}
 ]
 
 MAX_PAGES = 20
 DELAY = 2  # seconds between page loads
 BASE_URL = "https://tatoeba.org/en/sentences/search"
-OUTPUT_CSV = "./output/scraped_freedom_sentences.csv"
+OUTPUT_PATH = "./outputs/scraped_freedom_sentences.csv"
 
 # ------------------------
 # SELENIUM SETUP
 # ------------------------
-
 chrome_options = Options()
 chrome_options.add_argument("--headless")  # Run browser invisibly
 chrome_options.add_argument("--no-sandbox")
@@ -35,7 +37,6 @@ driver = webdriver.Chrome(options=chrome_options)
 # ------------------------
 # SCRAPING LOGIC
 # ------------------------
-
 all_sentences = []
 
 # Set up CLI test flag
@@ -53,7 +54,7 @@ for target in TARGETS:
     print(f"\nScraping {target['language']}...")
 
     for page in range(1, MAX_PAGES + 1):
-        query = f"{BASE_URL}?from={target['lang_code']}&query={target['word']}&page={page}&word_count_min=6"
+        query = f"{BASE_URL}?from={target['lang_code']}&query={target['word']}&page={page}&word_count_min=5"
         print(f"Searching at {query}")
         driver.get(query)
         time.sleep(DELAY)
@@ -76,17 +77,69 @@ for target in TARGETS:
                     })
 
 
-            print(f"Page {page}: Found {len(sentence_divs)} sentence elements.")
+            print(f"Page {page}: Found {len(sentence_divs)} sentence elements. \n")
         except Exception as e:
             print(f"Error on page {page}: {e}")
             continue
 
+'''Take sentences and cosine similar, and remove near-duplicate sentences'''
+def deduplicate_embeddings(sentences, cosine_scores, threshold=0.95) -> list[str]:
+    keep = []
+    dropped = set()
+    n = len(sentences)
+
+    for i in range(n):
+        if i in dropped:
+            continue
+        keep.append(i)
+        for j in range(i + 1, n):
+            if cosine_scores[i][j] > threshold:
+                dropped.add(j)
+
+    return [sentences[i] for i in keep]
+
 # ------------------------
 # CLEANUP & SAVE
 # ------------------------
-
 driver.quit()
 
 df = pd.DataFrame(all_sentences)
-df.to_csv(OUTPUT_CSV, index=False, encoding="utf-8")
-print(f"\nScraping complete. Saved {len(df)} sentences to {OUTPUT_CSV}")
+
+# todo - turn this into its own function with function signature
+# Remove duplicate sentences with sentence transformers
+model = SentenceTransformer('distiluse-base-multilingual-cased-v2', device='cuda')
+sentences = df['sentence'].tolist()
+print(f"Original length {len(sentences)}")
+embeddings = model.encode(sentences, convert_to_tensor=True)
+cosine_scores = util.pytorch_cos_sim(embeddings, embeddings)
+
+# Test - Calculate top 10 most similar sentences for sanity check
+cos_arr = cosine_scores.cpu().numpy()
+
+# Get upper triangle indices (excluding diagonal)
+n = cos_arr.shape[0]
+pairs = [
+    (i, j, cos_arr[i][j])
+    for i in range(n)
+    for j in range(i + 1, n)
+]
+
+# Sort by similarity, descending
+top_pairs = sorted(pairs, key=lambda x: x[2], reverse=True)[:10]
+
+# Print the top 10
+for i, j, score in top_pairs:
+    print(f"\nSim: {score:.3f}")
+    print(f"S{i}: {sentences[i]}")
+    print(f"S{j}: {sentences[j]}")
+
+
+unique_sentences = deduplicate_embeddings(sentences, embeddings)
+print(f"After de-duping length {len(unique_sentences)} \n")
+print(sentences)
+
+# todo - only include the de-duped sentences in our df, then save
+deduped_df = df[df["sentence"].isin(unique_sentences)].copy()
+
+# deduped_df.to_csv(OUTPUT_PATH, index=False, encoding="utf-8")
+# print(f"\nScraping complete. Saved {len(deduped_df)} sentences to {OUTPUT_PATH}")
