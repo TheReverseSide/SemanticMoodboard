@@ -2,3 +2,5 @@ venv
 .vscode/settings.json
 outputs
 chromedriver-win64
+dev_notes.md
+scratchpad.py
